@@ -1,0 +1,83 @@
+import pyodbc
+import tkinter as tk
+from tkinter import ttk, messagebox
+import PIL
+from PIL import Image, ImageTk
+
+
+try:
+    connect_to_db = pyodbc.connect(r'Driver=SQL Server;Server=LAPTOP-3OSCJ3OL\SQLEXPRESS;Database=user2;Trusted_connection=yes')
+    ms_box = messagebox.showinfo('Успех','Бд есть')
+except Exception:
+    ms_box = messagebox.showerror('Ошибка', 'Кал')
+
+cursor = connect_to_db.cursor()
+cursor.execute('SELECT [Наименование],[Единица измерения],[Стоимость],[Производитель],[Поставщик],[Категория товара],[Действующая скидка],[Кол-во на складе],[Описание],[Изображение] FROM Products_Table')
+rows = cursor.fetchall()
+
+root = tk.Tk()
+root.title('show')
+root.minsize(300,200)
+
+style = ttk.Style()
+style.configure('Custom.Treeview', rowheight=50)
+
+columns = ('Наименование', 'Ед.изм.', 'Цена', 'Производитель', 'Поставщик', 'Категория товара', 'Скидка', 'Кол-во', 'Описание', 'Изображение')
+
+tree = ttk.Treeview(root, columns=columns, show='headings', style='Custom.Treeview')
+
+for col in columns:
+    tree.heading(col, text=col)
+#тема для расширения и сжимание столбиков
+tree.column('Наименование', width=210)
+tree.column('Ед.изм.', width=50)
+tree.column('Цена', width=50)
+
+def autowrap(s, length=36):
+    return '\n'.join(s[i:i+length] for i in range(0, len(s), length))
+
+def rub(price):
+    return str(price) + ' руб.'
+
+def procent(p):
+    return str(p) + '%'
+
+def update_rows_count():
+    count = len(tree.get_children())
+    label.config(text=f'Количество строк:{count}')
+
+
+label = tk.Label(root, text='Количество строк')
+label.pack(side='bottom')
+
+for row in rows:
+    w_row = [autowrap(col) if isinstance(col, str) else col for col in row]
+    w_row[2] = rub(w_row[2])
+
+    tags = []
+
+   if w_row[6] >= 4:
+        tags.append('green')
+        w_row[6] = procent(w_row[6])
+    else:
+        w_row[6] = procent(w_row[6])
+
+    tree.tag_configure('green', background='green')
+
+    tree.insert('','end', text='', values=w_row, tags=tags)
+
+discount_var = tk.StringVar()
+discount_var.set('Все скидки')
+discount_menu = ttk.Combobox(root, textvariable=discount_var, values=['Все скидки', '0-3', '3-5', '5+'])
+discount_menu.pack(side='bottom')
+
+
+tree.bind('<<TreeviewOpen>>', update_rows_count)
+tree.bind('<<TreeviewClose>>', update_rows_count)
+
+tree.pack(fill='both', expand=True)
+
+root.after(100, update_rows_count)
+root.mainloop()
+cursor.close()
+connect_to_db.close()
